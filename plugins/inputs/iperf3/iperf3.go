@@ -63,7 +63,8 @@ func (f *Iperf3) Gather(acc telegraf.Accumulator) error {
 		json.Unmarshal(out, &tcpRes)
 		fmt.Println(tcpRes)
 		metrics := make(map[string]interface{})
-		metrics["bps"] = tcpRes.Total.Received.Bytes / tcpRes.Total.Received.Seconds
+		metrics["sent_bps"] = tcpRes.Total.Sent.Bytes / tcpRes.Total.Sent.Seconds
+		metrics["received_bps"] = tcpRes.Total.Received.Bytes / tcpRes.Total.Received.Seconds
 		tags["host"] = host
 		acc.AddFields("iperf3", metrics, tags)
 	}
