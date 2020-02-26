@@ -16,12 +16,13 @@ var (
 )
 
 type Iperf3 struct {
-	path  string
-	Hosts []string `toml:"hosts"`
+	Binary string
+	Hosts  []string `toml:"hosts"`
 }
 
 var sampleConfig = `
-  hosts = ['127.0.0.1']
+  binary = "iperf3"
+  hosts = ["127.0.0.1"]
 `
 
 func (f *Iperf3) Description() string {
@@ -32,7 +33,7 @@ func (f *Iperf3) SampleConfig() string {
 	return sampleConfig
 }
 
-type iperf3TCPResult struct {
+type tcpResult struct {
 	Total struct {
 		Sent struct {
 			Bytes   float64 `json:"bytes"`
@@ -46,25 +47,21 @@ type iperf3TCPResult struct {
 }
 
 func (f *Iperf3) Gather(acc telegraf.Accumulator) error {
-	if len(f.path) == 0 {
-		return errors.New("iperf3 not found: verify that iperf3 is installed and in your PATH")
-	}
-
-	name := f.path
+	binary := f.Binary
 	hosts := f.Hosts
 
 	for _, host := range hosts {
 		var arg []string
 		args := append(arg, "-c", host, "-t", "1", "--json")
 		tags := make(map[string]string)
-		cmd := execCommand(name, args...)
+		cmd := execCommand(binary, args...)
 		out, err := cmd.Output()
 		if err != nil {
 			return fmt.Errorf("failed to run command %s: %s - %s", strings.Join(cmd.Args, " "), err, string(out))
 		}
-		var tcpRes iperf3TCPResult
+		var tcpRes tcpResult
 		json.Unmarshal(out, &tcpRes)
-		//fmt.Println(tcpRes)
+		fmt.Println(tcpRes)
 		metrics := make(map[string]interface{})
 		metrics["bps"] = tcpRes.Total.Received.Bytes / tcpRes.Total.Received.Seconds
 		tags["host"] = host
@@ -73,12 +70,31 @@ func (f *Iperf3) Gather(acc telegraf.Accumulator) error {
 	return nil
 }
 
-func init() {
-	f := Iperf3{}
-	path, _ := exec.LookPath("iperf3")
-	if len(path) > 0 {
-		f.path = path
+// Init ensures the plugin is configured correctly.
+func (p *Iperf3) Init() error {
+	path, err := exec.LookPath(p.Binary)
+	if err != nil {
+		return errors.New("could not find iperf3 binary")
+
 	}
+	//fmt.Printf("found binary: %s", path)
+	p.Binary = path
+
+	//fmt.Printf("\nin Init() %+v\n", p)
+	if len(p.Hosts) < 1 {
+		return errors.New("must specify at least one target host")
+	}
+
+	return nil
+}
+
+func init() {
+	// default values
+	f := Iperf3{
+		Binary: "iperf3",
+	}
+
+	//fmt.Printf("\nin init(): %+v\n", f)
 	inputs.Add("iperf3", func() telegraf.Input {
 		// copy config structure incase it's used by multiple measurement definitions
 		f := f
