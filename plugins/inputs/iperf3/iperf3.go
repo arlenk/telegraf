@@ -28,6 +28,12 @@ type Iperf3 struct {
 
 	// time in seconds to transmit for
 	TransmitTime int `toml:"transmit_time"`
+
+	// reverse direction of test
+	Reverse bool
+
+	// number of parallel client streams to run
+	ParallelStreams int `toml:"parallel_streams"`
 }
 
 var sampleConfig = `
@@ -42,6 +48,12 @@ var sampleConfig = `
 
   ## time in seconds to transmit for
   # transmit_time = 10
+
+  ## reverse direction of test
+  # reverse = false
+
+  ## number of parallel streams to run
+  # parallel_streams = 1
 `
 
 func (f *Iperf3) Description() string {
@@ -86,16 +98,20 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 	binary := ip.Binary
 	hosts := ip.Hosts
 	protocol := ip.Protocol
-	transmitTime := ip.TransmitTime
 
 	for _, host := range hosts {
 		var args []string
 		args = append(args, "-c", host, "--json")
-		args = append(args, "-t", strconv.Itoa(transmitTime))
+		args = append(args, "-t", strconv.Itoa(ip.TransmitTime))
+		args = append(args, "-P", strconv.Itoa(ip.ParallelStreams))
+
 		if protocol == "udp" {
 			args = append(args, "-u")
 		}
-
+		if ip.Reverse {
+			args = append(args, "-R")
+		}
+		fmt.Println(args)
 		cmd := execCommand(binary, args...)
 		out, err := cmd.Output()
 		if err != nil {
@@ -155,9 +171,11 @@ func (ip *Iperf3) Init() error {
 func init() {
 	// default values
 	f := Iperf3{
-		Binary:       "iperf3",
-		Protocol:     "tcp",
-		TransmitTime: 10,
+		Binary:          "iperf3",
+		Protocol:        "tcp",
+		TransmitTime:    10,
+		Reverse:         false,
+		ParallelStreams: 1,
 	}
 
 	//fmt.Printf("\nin init(): %+v\n", f)
