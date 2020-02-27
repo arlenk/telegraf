@@ -153,12 +153,18 @@ func (ip *Iperf3) Init() error {
 		return errors.New("could not find iperf3 binary")
 
 	}
-	//fmt.Printf("found binary: %s", path)
 	ip.Binary = path
 
-	//fmt.Printf("\nin Init() %+v\n", p)
 	if len(ip.Hosts) < 1 {
 		return errors.New("must specify at least one target host")
+	}
+
+	if ip.TransmitTime < 1 {
+		return errors.New("transit_time must be >= 1")
+	}
+
+	if ip.ParallelStreams < 1 {
+		return errors.New("parallel_streams must be >= 1")
 	}
 
 	if (ip.Protocol != "tcp") && (ip.Protocol != "udp") {
