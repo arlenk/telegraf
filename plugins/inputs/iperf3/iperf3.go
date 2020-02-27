@@ -57,6 +57,7 @@ type tcpResult struct {
 			Bytes         float64 `json:"bytes"`
 			Seconds       float64 `json:"seconds"`
 			BitsPerSecond float64 `json:"bits_per_second"`
+			Retransmits   float64 `json:"retransmits"`
 		} `json:"sum_sent"`
 		Received struct {
 			Bytes         float64 `json:"bytes"`
@@ -84,10 +85,12 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 	binary := ip.Binary
 	hosts := ip.Hosts
 	protocol := ip.Protocol
+	transmitTime := ip.TransmitTime
 
 	for _, host := range hosts {
 		var args []string
-		args = append(args, "-c", host, "-t", "1", "--json")
+		args = append(args, "-c", host, "--json")
+		args = append(args, "-t", transmitTime)
 		if protocol == "udp" {
 			args = append(args, "-u")
 		}
@@ -104,6 +107,7 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 			json.Unmarshal(out, &res)
 			fmt.Println(res)
 			metrics["sent_bps"] = res.Total.Sent.BitsPerSecond
+			metrics["sent_retransmits"] = res.Total.Sent.Retransmits
 			metrics["received_bps"] = res.Total.Received.BitsPerSecond
 		} else {
 			var res udpResult
