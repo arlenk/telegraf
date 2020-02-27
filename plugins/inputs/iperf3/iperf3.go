@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/telegraf"
@@ -26,7 +27,7 @@ type Iperf3 struct {
 	Protocol string
 
 	// time in seconds to transmit for
-	TransmitTime string `toml:"transmit_time"`
+	TransmitTime int `toml:"transmit_time"`
 }
 
 var sampleConfig = `
@@ -90,7 +91,7 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 	for _, host := range hosts {
 		var args []string
 		args = append(args, "-c", host, "--json")
-		args = append(args, "-t", transmitTime)
+		args = append(args, "-t", strconv.Itoa(transmitTime))
 		if protocol == "udp" {
 			args = append(args, "-u")
 		}
@@ -156,7 +157,7 @@ func init() {
 	f := Iperf3{
 		Binary:       "iperf3",
 		Protocol:     "tcp",
-		TransmitTime: "10",
+		TransmitTime: 10,
 	}
 
 	//fmt.Printf("\nin init(): %+v\n", f)
