@@ -98,45 +98,18 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 	binary := ip.Binary
 	hosts := ip.Hosts
 	protocol := ip.Protocol
+	transmitTime := ip.TransmitTime
+	parallelStreams := ip.ParallelStreams
+	reverse := ip.Reverse
 
 	for _, host := range hosts {
-		var args []string
-		args = append(args, "-c", host, "--json")
-		args = append(args, "-t", strconv.Itoa(ip.TransmitTime))
-		args = append(args, "-P", strconv.Itoa(ip.ParallelStreams))
 
-		if protocol == "udp" {
-			args = append(args, "-u")
-		}
-		if ip.Reverse {
-			args = append(args, "-R")
-		}
-		fmt.Println(args)
-		cmd := execCommand(binary, args...)
-		out, err := cmd.Output()
+		metrics, err := measureBandwidth(binary, host, protocol,
+			transmitTime, parallelStreams, reverse)
+
 		if err != nil {
-			return fmt.Errorf("failed to run command %s: %s - %s", strings.Join(cmd.Args, " "), err, string(out))
+			return err
 		}
-
-		metrics := make(map[string]interface{})
-		if protocol == "tcp" {
-			var res tcpResult
-			json.Unmarshal(out, &res)
-			fmt.Println(res)
-			metrics["sent_bps"] = res.Total.Sent.BitsPerSecond
-			metrics["sent_retransmits"] = res.Total.Sent.Retransmits
-			metrics["received_bps"] = res.Total.Received.BitsPerSecond
-		} else {
-			var res udpResult
-			json.Unmarshal(out, &res)
-			fmt.Printf("%+v", res)
-			metrics["bps"] = res.Total.Sum.BitsPerSecond
-			metrics["jitter_ms"] = res.Total.Sum.JitterMS
-			metrics["packets"] = res.Total.Sum.Packets
-			metrics["lost_packets"] = res.Total.Sum.LostPackets
-			metrics["lost_percent"] = res.Total.Sum.LostPercent
-		}
-
 		tags := map[string]string{
 			"host":     host,
 			"protocol": protocol,
@@ -144,6 +117,49 @@ func (ip *Iperf3) Gather(acc telegraf.Accumulator) error {
 		acc.AddFields("iperf3", metrics, tags)
 	}
 	return nil
+}
+
+// connect to iperf3 server and get bandwith test results (metrics)
+func measureBandwidth(binary string, host string, protocol string, transmitTime int,
+	parallelStreams int, reverse bool) (map[string]interface{}, error) {
+
+	var args []string
+	args = append(args, "-c", host, "--json")
+	args = append(args, "-t", strconv.Itoa(transmitTime))
+	args = append(args, "-P", strconv.Itoa(parallelStreams))
+
+	if protocol == "udp" {
+		args = append(args, "-u")
+	}
+	if reverse {
+		args = append(args, "-R")
+	}
+	fmt.Println(args)
+	cmd := execCommand(binary, args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run command %s: %s - %s", strings.Join(cmd.Args, " "), err, string(out))
+	}
+
+	metrics := make(map[string]interface{})
+	if protocol == "tcp" {
+		var res tcpResult
+		json.Unmarshal(out, &res)
+		fmt.Println(res)
+		metrics["sent_bps"] = res.Total.Sent.BitsPerSecond
+		metrics["sent_retransmits"] = res.Total.Sent.Retransmits
+		metrics["received_bps"] = res.Total.Received.BitsPerSecond
+	} else {
+		var res udpResult
+		json.Unmarshal(out, &res)
+		fmt.Printf("%+v", res)
+		metrics["bps"] = res.Total.Sum.BitsPerSecond
+		metrics["jitter_ms"] = res.Total.Sum.JitterMS
+		metrics["packets"] = res.Total.Sum.Packets
+		metrics["lost_packets"] = res.Total.Sum.LostPackets
+		metrics["lost_percent"] = res.Total.Sum.LostPercent
+	}
+	return metrics, nil
 }
 
 // Init ensures the plugin is configured correctly.
